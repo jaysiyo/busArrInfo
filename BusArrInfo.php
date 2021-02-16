@@ -1,55 +1,57 @@
 <?php
-class BusArrInfo {
-    public $data        = array();
-    public $stationId   = 'YOUR STATIONID';
-    private $serviceKey = 'YOUR SERVICEKEY';
-    private $params     = array();
 
-    public function __construct($stationId = null) {
-        if (is_null($stationId) == false) {
-            $this->stationId    = $stationId;
+class BusArrInfo
+{
+    private $stationId;    
+    private $serviceKey = 'your-service-key';
+
+    private $uri    = 'http://ws.bus.go.kr/api/rest/arrive';
+
+    public $data    = [];
+
+    /**
+     * 정류소 ID 설정
+     * @param int stationId
+     */
+    public function __construct(int $stId)
+    {
+        $this->stationId    = $stId;
+        if (!extension_loaded('curl')) {
+            die('curl Unable to load extension.');
         }
-        return $this->setValue();
+        return $this->getLowArrInfoByStIdList();
     }
 
-    public function setValue() {
-        $arr    = array(
-            'serviceKey' => $this->serviceKey,
-            'stId' => $this->stationId
+    /**
+     * Data Request Settings
+     * @param string service
+     */
+    private function setValue($service)
+    {
+        $this->uri  = sprintf('%s/%s?ServiceKey=%s&stId=%s', 
+            $this->uri, $service, $this->serviceKey, urlencode($this->stationId)
         );
-
-        foreach ($arr as $key => $value) {
-            if (empty($value) == true) {
-                exit('ERROR');
-            }
-            $this->params[$key] = trim($value);
-        }
-
-        return $this->getData();
+        return [
+            CURLOPT_URL => $this->uri,
+            CURLOPT_RETURNTRANSFER  => true,
+            CURLOPT_CUSTOMREQUEST   => 'GET',
+            CURLOPT_HEADER  => false
+        ];
     }
 
-    public function getData() {
-        if (empty($this->params) == true) {
-            return false;
-        } else {
-            $url    = 'http://ws.bus.go.kr/api/rest/arrive/getLowArrInfoByStId?';
-            foreach ($this->params as $key => $value) {
-                if ($key == 'serviceKey') {
-                    $url    .= $key."={$value}";
-                } else {
-                    $url    .= "&".urlencode($key)."=".urlencode($value);
-                }
-            }
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HEADER, false);
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "GET");
-            $response   = curl_exec($ch);
-            curl_close($ch);
-            if (empty($response) == false) {
-                return $this->data  = simplexml_load_string($response);
-            }
+    /**
+     * 정류소ID로 저상버스 도착예정정보를 조회한다.
+     */
+    private function getLowArrInfoByStIdList()
+    {        
+        $ch = curl_init();
+        $setValue   = $this->setValue('getLowArrInfoByStId');
+        curl_setopt_array($ch, $setValue);
+        $response   = curl_exec($ch);
+        if (curl_errno($ch)) {
+            die('ERROR '. curl_error($ch) .'');
         }
+        $this->data = simplexml_load_string($response);
+        curl_close($ch);        
     }
 }
